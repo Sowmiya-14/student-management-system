@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Management System</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; }
+
+    header {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    header h1 { font-size: 28px; }
+    header p { font-size: 14px; opacity: 0.85; margin-top: 4px; }
+
+    .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    .card h2 { margin-bottom: 16px; color: #333; font-size: 18px; }
+
+    input {
+      width: 100%; padding: 10px 14px;
+      margin-bottom: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #667eea; }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #667eea; color: white; width: 100%; }
+    .btn-edit { background: #f0ad4e; color: white; }
+    .btn-delete { background: #e74c3c; color: white; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      background: #667eea;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-size: 14px;
+    }
+    td { padding: 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    tr:hover { background: #f9f9ff; }
+
+    .actions { display: flex; gap: 8px; }
+
+    #message {
+      padding: 10px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      display: none;
+    }
+    .success { background: #d4edda; color: #155724; display: block !important; }
+    .error { background: #f8d7da; color: #721c24; display: block !important; }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      flex: 1;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    .stat-card h3 { font-size: 32px; }
+    .stat-card p { font-size: 13px; opacity: 0.85; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🎓 Student Management System</h1>
+  <p>Deployed on AWS EC2 | Spring Boot + MariaDB</p>
+</header>
+
+<div class="container">
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat-card">
+      <h3 id="totalCount">0</h3>
+      <p>Total Students</p>
+    </div>
+  </div>
+
+  <!-- Message -->
+  <div id="message"></div>
+
+  <!-- Add / Edit Form -->
+  <div class="card">
+    <h2 id="formTitle">➕ Add New Student</h2>
+    <input type="hidden" id="studentId">
+    <input type="text" id="name" placeholder="Student Name">
+    <input type="email" id="email" placeholder="Email Address">
+    <input type="text" id="department" placeholder="Department">
+    <button class="btn btn-primary" onclick="saveStudent()">💾 Save Student</button>
+    <button class="btn btn-primary" id="cancelBtn"
+      style="background:#aaa;margin-top:8px;display:none"
+      onclick="resetForm()">✖ Cancel</button>
+  </div>
+
+  <!-- Student Table -->
+  <div class="card">
+    <h2>📋 All Students</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Department</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="studentTable">
+        <tr><td colspan="5" style="text-align:center;color:#aaa">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+  const API = '/api/students';
+
+  function showMessage(msg, type) {
+    const el = document.getElementById('message');
+    el.textContent = msg;
+    el.className = type;
+    setTimeout(() => { el.className = ''; el.style.display = 'none'; }, 3000);
+  }
+
+  async function loadStudents() {
+    try {
+      const res = await fetch(API);
+      const students = await res.json();
+      document.getElementById('totalCount').textContent = students.length;
+      const tbody = document.getElementById('studentTable');
+      if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#aaa">No students found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = students.map(s => `
+        <tr>
+          <td>${s.id}</td>
+          <td>${s.name}</td>
+          <td>${s.email}</td>
+          <td>${s.department}</td>
+          <td class="actions">
+            <button class="btn btn-edit" onclick="editStudent(${s.id},'${s.name}','${s.email}','${s.department}')">✏️ Edit</button>
+            <button class="btn btn-delete" onclick="deleteStudent(${s.id})">🗑️ Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      document.getElementById('studentTable').innerHTML =
+        '<tr><td colspan="5" style="text-align:center;color:red">❌ Could not connect to API</td></tr>';
+    }
+  }
+
+  async function saveStudent() {
+    const id = document.getElementById('studentId').value;
+    const student = {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      department: document.getElementById('department').value
+    };
+    if (!student.name || !student.email || !student.department) {
+      showMessage('⚠️ Please fill all fields!', 'error');
+      return;
+    }
+    const url = id ? `${API}/${id}` : API;
+    const method = id ? 'PUT' : 'POST';
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(student)
+    });
+    showMessage(id ? '✅ Student updated!' : '✅ Student added!', 'success');
+    resetForm();
+    loadStudents();
+  }
+
+  function editStudent(id, name, email, department) {
+    document.getElementById('studentId').value = id;
+    document.getElementById('name').value = name;
+    document.getElementById('email').value = email;
+    document.getElementById('department').value = department;
+    document.getElementById('formTitle').textContent = '✏️ Edit Student';
+    document.getElementById('cancelBtn').style.display = 'block';
+    window.scrollTo(0, 0);
+  }
+
+  async function deleteStudent(id) {
+    if (!confirm('Are you sure you want to delete this student?')) return;
+    await fetch(`${API}/${id}`, { method: 'DELETE' });
+    showMessage('🗑️ Student deleted!', 'success');
+    loadStudents();
+  }
+
+  function resetForm() {
+    document.getElementById('studentId').value = '';
+    document.getElementById('name').value = '';
+    document.getElementById('email').value = '';
+    document.getElementById('department').value = '';
+    document.getElementById('formTitle').textContent = '➕ Add New Student';
+    document.getElementById('cancelBtn').style.display = 'none';
+  }
+
+  loadStudents();
+</script>
+</body>
+</html>
